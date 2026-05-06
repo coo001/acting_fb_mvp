@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 연기 자기관찰 도구</title>
+    <link rel="stylesheet" th:href="@{/style.css}">
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>AI 연기 자기관찰 도구</h1>
+        <p class="subtitle">영상 → 감정 강도, 발화 속도, 침묵 구간만 측정. 평가는 안 함. 해석은 본인 몫.</p>
+    </header>
+
+    <div th:if="${errorMessage}" class="error" th:text="${errorMessage}">에러</div>
+
+    <section class="upload-section">
+        <h2>새 분석</h2>
+        <form id="uploadForm" action="/analyze" method="post" enctype="multipart/form-data">
+            <div class="field">
+                <label for="file">영상 파일 (mp4 / mov, 500MB 이하)</label>
+                <input type="file" id="file" name="file" accept="video/mp4,video/quicktime,.mp4,.mov" required>
+            </div>
+            <div class="field">
+                <label for="label">라벨 (이 분석을 식별할 이름)</label>
+                <input type="text" id="label" name="label" placeholder="예: 햄릿 1막 1차" required maxlength="80">
+            </div>
+            <div class="actions">
+                <button type="submit" id="submitBtn">분석 시작</button>
+                <div id="spinner" class="spinner" hidden>
+                    <div class="spinner-icon"></div>
+                    <span>분석 중… (1~3분)</span>
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <section class="recent-section">
+        <h2>최근 결과</h2>
+        <div th:if="${#lists.isEmpty(recent)}" class="empty">아직 분석한 영상 없음</div>
+        <ul class="recent" th:if="${not #lists.isEmpty(recent)}">
+            <li th:each="entry : ${recent}">
+                <a th:href="@{'/result/' + ${entry.id()}}">
+                    <span class="label" th:text="${entry.label()}">라벨</span>
+                    <span class="meta">
+                        <span th:text="${#numbers.formatDecimal(entry.durationSec(), 1, 1)} + 's'">95.5s</span>
+                        ·
+                        <span th:text="${entry.createdAt()}">2026-05-06T...</span>
+                    </span>
+                </a>
+            </li>
+        </ul>
+    </section>
+</div>
+<script th:src="@{/app.js}"></script>
+</body>
+</html>

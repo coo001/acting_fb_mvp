@@ -1,0 +1,25 @@
+spring:
+  config:
+    import: optional:file:./.env[.properties]
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 500MB
+  mvc:
+    async:
+      request-timeout: 300000
+
+server:
+  tomcat:
+    connection-timeout: 300000
+
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+
+app:
+  data-dir: ./data
+
+logging:
+  level:
+    root: INFO
+    com.loadingmid: INFO
