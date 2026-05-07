@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title th:text="'결과: ' + ${current.label()}">결과</title>
     <link rel="stylesheet" th:href="@{/style.css}">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <div class="container">
@@ -19,49 +18,31 @@
         </div>
     </header>
 
-    <div class="compare-bar">
-        <label for="compareSelect">이전 결과와 비교:</label>
-        <select id="compareSelect">
-            <option value="">선택 안 함</option>
-            <option th:each="o : ${others}"
-                    th:value="${o.id()}"
-                    th:text="${o.label()} + ' (' + ${o.createdAt()} + ')'"
-                    th:selected="${compareWithId != null and compareWithId == o.id()}">옵션</option>
-        </select>
-        <span th:if="${compare != null}" class="compare-active">
-            비교 중: <strong th:text="${compare.label()}">비교 라벨</strong>
-        </span>
-    </div>
-
-    <section class="chart-block">
-        <h2>감정 강도 (0~10)</h2>
-        <div class="chart-wrap"><canvas id="emotionChart"></canvas></div>
+    <section class="player-section">
+        <video id="player" controls preload="metadata"
+               th:src="@{'/videos/' + ${current.videoFilename()}}"
+               class="player"></video>
     </section>
 
-    <section class="chart-block">
-        <h2>발화 속도 (WPM)</h2>
-        <div class="chart-wrap"><canvas id="speechChart"></canvas></div>
+    <section class="timeline-section">
+        <h2>관찰 타임라인</h2>
+        <p class="hint">막대를 클릭하면 영상이 해당 시점으로 점프</p>
+        <div id="timeline" class="timeline"></div>
     </section>
 
-    <section class="chart-block">
-        <h2>침묵 구간 (0.8s 이상)</h2>
-        <div th:if="${compare != null}" class="silence-pair">
-            <div>
-                <h3 th:text="${current.label()}">현재</h3>
-                <div class="chart-wrap"><canvas id="silenceCurrent"></canvas></div>
-            </div>
-            <div>
-                <h3 th:text="${compare.label()}">비교</h3>
-                <div class="chart-wrap"><canvas id="silenceCompare"></canvas></div>
-            </div>
-        </div>
-        <div th:if="${compare == null}" class="chart-wrap">
-            <canvas id="silenceChart"></canvas>
-        </div>
+    <section class="observations-section">
+        <h2>관찰 노트 (<span id="obsCount">0</span>건)</h2>
+        <div class="filter-bar" id="filterBar"></div>
+        <ol id="observationList" class="observation-list"></ol>
+    </section>
+
+    <section class="transcript-section">
+        <h2>트랜스크립트</h2>
+        <ol id="transcriptList" class="transcript-list"></ol>
     </section>
 
     <div id="resultData"
-         th:attr="data-current=${currentJson}, data-compare=${compareJson}, data-current-id=${current.videoId()}"
+         th:attr="data-current=${currentJson}"
          hidden></div>
 </div>
 

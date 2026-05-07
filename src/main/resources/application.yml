@@ -5,10 +5,13 @@ spring:
     multipart:
       max-file-size: 500MB
       max-request-size: 500MB
+      file-size-threshold: 1MB
 
 server:
   tomcat:
     connection-timeout: 300000
+    max-swallow-size: -1
+    max-http-form-post-size: -1
 
 gemini:
   api-key: ${GEMINI_API_KEY:}

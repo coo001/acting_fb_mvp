@@ -10,25 +10,19 @@ public record AnalysisResult(
         String createdAt,
         String label,
         double durationSec,
-        List<EmotionPoint> emotionIntensity,
-        List<SpeechRatePoint> speechRate,
-        List<Silence> silences
+        String videoFilename,
+        List<Observation> observations,
+        List<TranscriptItem> transcript
 ) {
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record EmotionPoint(double t, double value) {}
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public record SpeechRatePoint(double t, int wpm) {}
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Silence(double start, double end, double duration) {}
+    public record Observation(double startSec, double endSec, String category, String description) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record TranscriptItem(double start, double end, String text) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record GeminiRaw(double durationSec,
-                            List<EmotionPoint> emotionIntensity,
+                            List<Observation> observations,
                             List<TranscriptItem> transcript) {}
 
     public record IndexEntry(String id, String label, String createdAt, double durationSec) {}

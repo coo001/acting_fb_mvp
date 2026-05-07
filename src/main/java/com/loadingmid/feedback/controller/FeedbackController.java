@@ -12,18 +12,21 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -50,10 +53,15 @@ public class FeedbackController {
     }
 
     @PostMapping("/analyze")
-    public String analyze(@RequestParam("file") MultipartFile file,
-                          @RequestParam("label") String label,
+    public String analyze(@RequestParam(value = "file", required = false) MultipartFile file,
+                          @RequestParam(value = "label", required = false) String label,
                           RedirectAttributes redirect) {
         try {
+            log.info("analyze 호출 file={} size={} name={} label={}",
+                    file == null ? "null" : "present",
+                    file == null ? -1 : file.getSize(),
+                    file == null ? "n/a" : file.getOriginalFilename(),
+                    label);
             if (file == null || file.isEmpty()) {
                 redirect.addFlashAttribute("errorMessage", "영상 파일을 선택해줘");
                 return "redirect:/";
@@ -82,7 +90,7 @@ public class FeedbackController {
             file.transferTo(tmpFile.toFile());
             log.info("tmp 영상 저장: {} ({} bytes)", tmpFile, file.getSize());
 
-            String jobId = jobService.submit(tmpFile, mimeType, label.trim());
+            String jobId = jobService.submit(tmpFile, mimeType, ext, label.trim());
             return "redirect:/job/" + jobId;
         } catch (Exception e) {
             log.error("작업 등록 실패", e);
@@ -114,9 +122,7 @@ public class FeedbackController {
     }
 
     @GetMapping("/result/{id}")
-    public String result(@PathVariable String id,
-                         @RequestParam(value = "compareWith", required = false) String compareWith,
-                         Model model) {
+    public String result(@PathVariable String id, Model model) {
         Optional<AnalysisResult> currentOpt = resultStore.load(id);
         if (currentOpt.isEmpty()) {
             model.addAttribute("errorMessage", "결과를 찾을 수 없음: " + id);
@@ -127,20 +133,6 @@ public class FeedbackController {
         AnalysisResult current = currentOpt.get();
         model.addAttribute("current", current);
         model.addAttribute("currentJson", toJson(current));
-
-        List<IndexEntry> all = resultStore.listAll();
-        List<IndexEntry> others = all.stream().filter(e -> !e.id().equals(id)).toList();
-        model.addAttribute("others", others);
-
-        if (compareWith != null && !compareWith.isBlank()) {
-            Optional<AnalysisResult> compareOpt = resultStore.load(compareWith);
-            if (compareOpt.isPresent()) {
-                model.addAttribute("compare", compareOpt.get());
-                model.addAttribute("compareJson", toJson(compareOpt.get()));
-            }
-            model.addAttribute("compareWithId", compareWith);
-        }
-
         return "result";
     }
 
@@ -150,5 +142,24 @@ public class FeedbackController {
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public String handleTooLarge(RedirectAttributes redirect) {
+        redirect.addFlashAttribute("errorMessage", "500MB 초과 영상은 못 받음");
+        return "redirect:/";
+    }
+
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public String handleMissingPart(RedirectAttributes redirect) {
+        redirect.addFlashAttribute("errorMessage", "영상 파일을 선택해줘");
+        return "redirect:/";
+    }
+
+    @ExceptionHandler(MultipartException.class)
+    public String handleMultipart(MultipartException e, RedirectAttributes redirect) {
+        log.warn("multipart 파싱 실패: {}", e.getMessage());
+        redirect.addFlashAttribute("errorMessage", "업로드 실패: " + e.getMessage());
+        return "redirect:/";
     }
 }

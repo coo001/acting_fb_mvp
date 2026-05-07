@@ -11,7 +11,6 @@ import com.google.genai.types.Part;
 import com.google.genai.types.Schema;
 import com.google.genai.types.Type;
 import com.google.genai.types.UploadFileConfig;
-import com.loadingmid.feedback.dto.AnalysisResult;
 import com.loadingmid.feedback.dto.AnalysisResult.GeminiRaw;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,34 +19,30 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.function.Consumer;
 
 @Service
 public class GeminiService {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiService.class);
-    private static final String MODEL = "gemini-2.5-pro";
+    private static final String MODEL = "gemini-2.5-flash";
     private static final long ACTIVE_WAIT_MS = 5L * 60 * 1000;
     private static final long POLL_INTERVAL_MS = 5_000;
 
     private final String apiKey;
     private final PromptLoader promptLoader;
-    private final MetricsProcessor metricsProcessor;
     private final ObjectMapper mapper = new ObjectMapper();
 
     public GeminiService(@Value("${gemini.api-key:}") String apiKey,
-                         PromptLoader promptLoader,
-                         MetricsProcessor metricsProcessor) {
+                         PromptLoader promptLoader) {
         this.apiKey = apiKey;
         this.promptLoader = promptLoader;
-        this.metricsProcessor = metricsProcessor;
     }
 
-    public AnalysisResult analyze(Path videoPath, String mimeType, String label, Consumer<String> onPhase) throws IOException, InterruptedException {
+    public GeminiRaw analyze(Path videoPath, String mimeType, String label, Consumer<String> onPhase) throws IOException, InterruptedException {
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalStateException("GEMINI_API_KEY 환경변수가 설정되지 않았음");
         }
@@ -74,7 +69,7 @@ public class GeminiService {
             String fileUri = uploaded.uri().orElseThrow(() -> new IllegalStateException("업로드 응답에 uri 없음"));
 
             String userPrompt = "라벨: " + label
-                    + "\n위 영상에 대해 systemInstruction에 정의된 메트릭(durationSec, emotionIntensity, transcript)을 JSON으로 출력하라.";
+                    + "\n위 영상에 대해 systemInstruction에 정의된 형식(durationSec, transcript, observations)으로 JSON을 출력하라.";
 
             Content content = Content.fromParts(
                     Part.fromUri(fileUri, mimeType),
@@ -96,19 +91,7 @@ public class GeminiService {
             }
             log.info("Gemini 응답 수신 (len={})", json.length());
 
-            onPhase.accept("메트릭 계산 중");
-            GeminiRaw raw = mapper.readValue(json, GeminiRaw.class);
-            MetricsProcessor.Metrics metrics = metricsProcessor.process(raw.transcript(), raw.durationSec());
-
-            return new AnalysisResult(
-                    UUID.randomUUID().toString(),
-                    Instant.now().toString(),
-                    label,
-                    raw.durationSec(),
-                    raw.emotionIntensity(),
-                    metrics.speechRate(),
-                    metrics.silences()
-            );
+            return mapper.readValue(json, GeminiRaw.class);
         } finally {
             if (fileName != null) {
                 try {
@@ -153,13 +136,20 @@ public class GeminiService {
         Schema number = Schema.builder().type(Type.Known.NUMBER).build();
         Schema string = Schema.builder().type(Type.Known.STRING).build();
 
-        Map<String, Schema> emotionProps = new LinkedHashMap<>();
-        emotionProps.put("t", number);
-        emotionProps.put("value", number);
-        Schema emotionItem = Schema.builder()
+        Schema categoryEnum = Schema.builder()
+                .type(Type.Known.STRING)
+                .enum_(List.of("gaze", "head", "gesture", "posture", "breath", "voice", "emphasis", "microexpression", "tic"))
+                .build();
+
+        Map<String, Schema> observationProps = new LinkedHashMap<>();
+        observationProps.put("startSec", number);
+        observationProps.put("endSec", number);
+        observationProps.put("category", categoryEnum);
+        observationProps.put("description", string);
+        Schema observationItem = Schema.builder()
                 .type(Type.Known.OBJECT)
-                .properties(emotionProps)
-                .required("t", "value")
+                .properties(observationProps)
+                .required("startSec", "endSec", "category", "description")
                 .build();
 
         Map<String, Schema> transcriptProps = new LinkedHashMap<>();
@@ -172,9 +162,9 @@ public class GeminiService {
                 .required("start", "end", "text")
                 .build();
 
-        Schema emotionArray = Schema.builder()
+        Schema observationsArray = Schema.builder()
                 .type(Type.Known.ARRAY)
-                .items(emotionItem)
+                .items(observationItem)
                 .build();
 
         Schema transcriptArray = Schema.builder()
@@ -184,13 +174,13 @@ public class GeminiService {
 
         Map<String, Schema> rootProps = new LinkedHashMap<>();
         rootProps.put("durationSec", number);
-        rootProps.put("emotionIntensity", emotionArray);
+        rootProps.put("observations", observationsArray);
         rootProps.put("transcript", transcriptArray);
 
         return Schema.builder()
                 .type(Type.Known.OBJECT)
                 .properties(rootProps)
-                .required("durationSec", "emotionIntensity", "transcript")
+                .required("durationSec", "observations", "transcript")
                 .build();
     }
 }

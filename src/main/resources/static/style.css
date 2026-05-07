@@ -24,6 +24,7 @@ h2 { font-size: 20px; margin: 32px 0 16px; font-weight: 600; }
 h3 { font-size: 14px; color: #6e6e73; margin-bottom: 8px; font-weight: 500; }
 
 .subtitle { color: #6e6e73; font-size: 14px; }
+.hint { font-size: 13px; color: #6e6e73; margin-bottom: 12px; }
 
 .error {
     background: #ffeded;
@@ -97,28 +98,6 @@ button:disabled { background: #999; cursor: not-allowed; }
 .back { color: #0071e3; text-decoration: none; font-size: 14px; display: inline-block; margin-bottom: 16px; }
 .back:hover { text-decoration: underline; }
 
-.compare-bar {
-    margin: 24px 0;
-    padding: 16px;
-    background: #fafafc;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-.compare-bar label { font-weight: 500; font-size: 14px; }
-.compare-bar select {
-    padding: 8px 12px;
-    border: 1px solid #d2d2d7;
-    border-radius: 6px;
-    font-size: 14px;
-    background: white;
-    flex: 1;
-    min-width: 200px;
-}
-.compare-active { font-size: 13px; color: #ff9500; }
-
 .active-section {
     margin-bottom: 32px;
     padding: 16px 20px;
@@ -150,21 +129,134 @@ button:disabled { background: #999; cursor: not-allowed; }
     color: #6e6e73;
 }
 
-.chart-block { margin-bottom: 32px; }
-.chart-wrap {
-    background: white;
-    padding: 16px;
+.player-section { margin: 24px 0; }
+.player {
+    width: 100%;
+    max-height: 480px;
+    background: black;
+    border-radius: 10px;
+    display: block;
+}
+
+.timeline-section { margin-bottom: 32px; }
+.timeline {
     border: 1px solid #e5e5ea;
     border-radius: 8px;
-    height: 280px;
+    overflow: hidden;
+    background: #fafafc;
+}
+.timeline-row {
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid #e5e5ea;
+    min-height: 28px;
+}
+.timeline-row:last-child { border-bottom: none; }
+.timeline-label {
+    width: 80px;
+    flex-shrink: 0;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    background: white;
+    border-left: 3px solid #ccc;
+    display: flex;
+    align-items: center;
+}
+.timeline-track {
+    flex: 1;
     position: relative;
+    background: repeating-linear-gradient(to right,
+        transparent 0,
+        transparent calc(10% - 1px),
+        #e5e5ea calc(10% - 1px),
+        #e5e5ea 10%);
 }
-.silence-pair {
+.timeline-marker {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    border-radius: 3px;
+    cursor: pointer;
+    opacity: 0.85;
+    transition: opacity 0.1s, transform 0.1s;
+}
+.timeline-marker:hover { opacity: 1; transform: scaleY(1.15); }
+
+.observations-section { margin-bottom: 32px; }
+.filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 16px;
+}
+.filter-btn {
+    background: white;
+    color: #1d1d1f;
+    border: 1.5px solid var(--accent, #d2d2d7);
+    padding: 6px 12px;
+    border-radius: 14px;
+    font-size: 13px;
+    font-weight: 500;
+}
+.filter-btn:hover:not(:disabled) {
+    background: #fafafc;
+}
+.filter-btn.active {
+    background: var(--accent, #1d1d1f);
+    color: white;
+}
+
+.observation-list, .transcript-list { list-style: none; }
+.observation-item {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
+    grid-template-columns: 56px 80px 1fr;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f2;
 }
+.observation-item:last-child { border-bottom: none; }
+
+.time-jump {
+    background: transparent;
+    color: #0071e3;
+    border: 1px solid #d2d2d7;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    cursor: pointer;
+}
+.time-jump:hover { background: #f0f7ff; border-color: #0071e3; }
+
+.category-badge {
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 10px;
+    text-align: center;
+}
+
+.observation-desc { font-size: 14px; }
+
+.transcript-section { margin-bottom: 16px; }
+.transcript-item {
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    gap: 12px;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid #f5f5f7;
+}
+.transcript-text { font-size: 14px; color: #333; }
+
 @media (max-width: 640px) {
     .container { padding: 20px; }
-    .silence-pair { grid-template-columns: 1fr; }
+    .observation-item {
+        grid-template-columns: 56px 80px 1fr;
+        font-size: 13px;
+    }
+    .timeline-label { width: 64px; font-size: 12px; }
 }
