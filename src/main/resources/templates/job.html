@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="'분석 중: ' + ${job.label()}">분석 중</title>
+    <link rel="stylesheet" th:href="@{/style.css}">
+</head>
+<body>
+<div class="container">
+    <a href="/" class="back">← 돌아가기</a>
+    <header>
+        <h1 th:text="${job.label()}">라벨</h1>
+        <div class="meta">
+            <span th:text="'시작: ' + ${job.createdAt()}">시작 시각</span>
+        </div>
+    </header>
+
+    <section class="job-status">
+        <div class="status-card" id="jobStatusCard">
+            <div class="status-spinner" id="jobStatusSpinner"><div class="spinner-icon"></div></div>
+            <div class="status-text">
+                <div class="phase" id="jobPhase" th:text="${job.phase()}">진행 중</div>
+                <div class="hint">분석은 보통 1~3분 걸린다. 새로고침해도 OK.</div>
+            </div>
+        </div>
+
+        <div id="jobError" class="error" hidden></div>
+    </section>
+
+    <div id="jobMeta"
+         th:attr="data-job-id=${job.id()}"
+         hidden></div>
+</div>
+<script th:src="@{/app.js}"></script>
+</body>
+</html>

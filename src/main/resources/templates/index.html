@@ -36,6 +36,18 @@
         </form>
     </section>
 
+    <section th:if="${not #lists.isEmpty(activeJobs)}" class="active-section">
+        <h2>진행 중</h2>
+        <ul class="recent">
+            <li th:each="j : ${activeJobs}">
+                <a th:href="@{'/job/' + ${j.id()}}">
+                    <span class="label" th:text="${j.label()}">라벨</span>
+                    <span class="meta" th:text="${j.phase()}">진행 중</span>
+                </a>
+            </li>
+        </ul>
+    </section>
+
     <section class="recent-section">
         <h2>최근 결과</h2>
         <div th:if="${#lists.isEmpty(recent)}" class="empty">아직 분석한 영상 없음</div>

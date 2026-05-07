@@ -4,21 +4,28 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loadingmid.feedback.dto.AnalysisResult;
 import com.loadingmid.feedback.dto.AnalysisResult.IndexEntry;
-import com.loadingmid.feedback.service.GeminiService;
+import com.loadingmid.feedback.dto.Job;
+import com.loadingmid.feedback.service.JobService;
 import com.loadingmid.feedback.service.ResultStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Controller
 public class FeedbackController {
@@ -26,18 +33,19 @@ public class FeedbackController {
     private static final Logger log = LoggerFactory.getLogger(FeedbackController.class);
     private static final long MAX_BYTES = 500L * 1024 * 1024;
 
-    private final GeminiService geminiService;
+    private final JobService jobService;
     private final ResultStore resultStore;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public FeedbackController(GeminiService geminiService, ResultStore resultStore) {
-        this.geminiService = geminiService;
+    public FeedbackController(JobService jobService, ResultStore resultStore) {
+        this.jobService = jobService;
         this.resultStore = resultStore;
     }
 
     @GetMapping("/")
     public String index(Model model) {
         model.addAttribute("recent", resultStore.listRecent(10));
+        model.addAttribute("activeJobs", jobService.listActive());
         return "index";
     }
 
@@ -64,17 +72,45 @@ public class FeedbackController {
                 return "redirect:/";
             }
 
-            log.info("분석 시작 label={} size={}bytes", label, file.getSize());
-            AnalysisResult result = geminiService.analyze(file, label.trim());
-            resultStore.save(result);
-            log.info("분석 완료 id={}", result.videoId());
-            return "redirect:/result/" + result.videoId();
+            boolean isMov = name.endsWith(".mov");
+            String ext = isMov ? ".mov" : ".mp4";
+            String mimeType = isMov ? "video/quicktime" : "video/mp4";
+
+            Path tmpDir = Paths.get(System.getProperty("java.io.tmpdir"), "acting_uploads");
+            Files.createDirectories(tmpDir);
+            Path tmpFile = tmpDir.resolve(UUID.randomUUID() + ext);
+            file.transferTo(tmpFile.toFile());
+            log.info("tmp 영상 저장: {} ({} bytes)", tmpFile, file.getSize());
+
+            String jobId = jobService.submit(tmpFile, mimeType, label.trim());
+            return "redirect:/job/" + jobId;
         } catch (Exception e) {
-            log.error("분석 실패", e);
+            log.error("작업 등록 실패", e);
             String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
             redirect.addFlashAttribute("errorMessage", "분석 실패: " + msg);
             return "redirect:/";
         }
+    }
+
+    @GetMapping("/job/{id}")
+    public String job(@PathVariable String id, Model model) {
+        Optional<Job> jobOpt = jobService.get(id);
+        if (jobOpt.isEmpty()) {
+            model.addAttribute("errorMessage", "작업을 찾을 수 없음: " + id);
+            model.addAttribute("recent", resultStore.listRecent(10));
+            model.addAttribute("activeJobs", jobService.listActive());
+            return "index";
+        }
+        model.addAttribute("job", jobOpt.get());
+        return "job";
+    }
+
+    @GetMapping("/api/jobs/{id}")
+    @ResponseBody
+    public ResponseEntity<Job> jobApi(@PathVariable String id) {
+        return jobService.get(id)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @GetMapping("/result/{id}")
@@ -85,6 +121,7 @@ public class FeedbackController {
         if (currentOpt.isEmpty()) {
             model.addAttribute("errorMessage", "결과를 찾을 수 없음: " + id);
             model.addAttribute("recent", resultStore.listRecent(10));
+            model.addAttribute("activeJobs", jobService.listActive());
             return "index";
         }
         AnalysisResult current = currentOpt.get();

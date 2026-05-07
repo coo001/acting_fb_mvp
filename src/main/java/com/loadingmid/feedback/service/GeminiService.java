@@ -17,16 +17,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 @Service
 public class GeminiService {
@@ -49,22 +47,10 @@ public class GeminiService {
         this.metricsProcessor = metricsProcessor;
     }
 
-    public AnalysisResult analyze(MultipartFile videoFile, String label) throws IOException, InterruptedException {
+    public AnalysisResult analyze(Path videoPath, String mimeType, String label, Consumer<String> onPhase) throws IOException, InterruptedException {
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalStateException("GEMINI_API_KEY 환경변수가 설정되지 않았음");
         }
-
-        Path tmpDir = Paths.get(System.getProperty("java.io.tmpdir"), "acting_uploads");
-        Files.createDirectories(tmpDir);
-
-        String original = videoFile.getOriginalFilename() == null ? "video.mp4" : videoFile.getOriginalFilename().toLowerCase();
-        boolean isMov = original.endsWith(".mov");
-        String ext = isMov ? ".mov" : ".mp4";
-        String mimeType = isMov ? "video/quicktime" : "video/mp4";
-
-        Path tmpFile = tmpDir.resolve(UUID.randomUUID() + ext);
-        videoFile.transferTo(tmpFile.toFile());
-        log.info("tmp 영상 저장: {} ({} bytes)", tmpFile, videoFile.getSize());
 
         Client client = Client.builder()
                 .apiKey(apiKey)
@@ -73,15 +59,17 @@ public class GeminiService {
 
         String fileName = null;
         try {
+            onPhase.accept("Gemini 업로드 중");
             log.info("Files API 업로드 시작 mime={}", mimeType);
             com.google.genai.types.File uploaded = client.files.upload(
-                    tmpFile.toString(),
+                    videoPath.toString(),
                     UploadFileConfig.builder().mimeType(mimeType).build()
             );
             fileName = uploaded.name().orElseThrow(() -> new IllegalStateException("업로드 응답에 name 없음"));
             log.info("업로드 완료 name={} 초기 state={}", fileName,
                     uploaded.state().map(FileState::toString).orElse("null"));
 
+            onPhase.accept("Gemini 처리 대기 중");
             uploaded = waitForActive(client, uploaded);
             String fileUri = uploaded.uri().orElseThrow(() -> new IllegalStateException("업로드 응답에 uri 없음"));
 
@@ -99,6 +87,7 @@ public class GeminiService {
                     .responseSchema(buildResponseSchema())
                     .build();
 
+            onPhase.accept("분석 중 (보통 1~2분)");
             log.info("generateContent 호출 model={}", MODEL);
             GenerateContentResponse response = client.models.generateContent(MODEL, content, config);
             String json = response.text();
@@ -107,6 +96,7 @@ public class GeminiService {
             }
             log.info("Gemini 응답 수신 (len={})", json.length());
 
+            onPhase.accept("메트릭 계산 중");
             GeminiRaw raw = mapper.readValue(json, GeminiRaw.class);
             MetricsProcessor.Metrics metrics = metricsProcessor.process(raw.transcript(), raw.durationSec());
 
@@ -127,11 +117,6 @@ public class GeminiService {
                 } catch (Exception e) {
                     log.warn("Gemini 파일 삭제 실패 name={}: {}", fileName, e.getMessage());
                 }
-            }
-            try {
-                Files.deleteIfExists(tmpFile);
-            } catch (Exception e) {
-                log.warn("tmp 파일 삭제 실패: {}", e.getMessage());
             }
             try {
                 client.close();

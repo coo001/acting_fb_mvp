@@ -9,6 +9,7 @@
 
     setupUploadForm();
     setupCompareSelect();
+    setupJobPoller();
     renderChartsIfPresent();
 
     function setupUploadForm() {
@@ -53,6 +54,40 @@
                 : '/result/' + encodeURIComponent(currentId);
             window.location.href = url;
         });
+    }
+
+    function setupJobPoller() {
+        const meta = document.getElementById('jobMeta');
+        if (!meta) return;
+        const jobId = meta.dataset.jobId;
+        const phaseEl = document.getElementById('jobPhase');
+        const errorEl = document.getElementById('jobError');
+        const spinnerEl = document.getElementById('jobStatusSpinner');
+
+        let timer = null;
+        async function poll() {
+            try {
+                const res = await fetch('/api/jobs/' + encodeURIComponent(jobId));
+                if (!res.ok) return;
+                const job = await res.json();
+                if (phaseEl && job.phase) phaseEl.textContent = job.phase;
+                if (job.status === 'DONE' && job.resultId) {
+                    if (timer) clearInterval(timer);
+                    window.location.href = '/result/' + encodeURIComponent(job.resultId);
+                } else if (job.status === 'FAILED') {
+                    if (timer) clearInterval(timer);
+                    if (spinnerEl) spinnerEl.style.display = 'none';
+                    if (errorEl) {
+                        errorEl.textContent = '분석 실패: ' + (job.errorMessage || '알 수 없는 에러');
+                        errorEl.hidden = false;
+                    }
+                }
+            } catch (e) {
+                console.warn('폴링 실패', e);
+            }
+        }
+        poll();
+        timer = setInterval(poll, 2000);
     }
 
     function renderChartsIfPresent() {
